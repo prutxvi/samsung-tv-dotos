@@ -11,6 +11,8 @@ Installed over Wi-Fi from a laptop. No root, no modified firmware.
 ![Phone latency ~10 ms](https://img.shields.io/badge/phone%20%E2%86%92%20TV-~10%20ms-ffffff?style=flat-square&labelColor=000)
 ![No root](https://img.shields.io/badge/root-not%20needed-ffffff?style=flat-square&labelColor=000)
 
+**[Read the full story →](https://tv-hack.pvhome.workers.dev)** &nbsp;·&nbsp; [TV Browser+](https://github.com/prutxvi/tv-browser-plus)
+
 <img src="docs/media/hero.jpg" alt="The DotOS home screen on a Samsung TV: date, a large dot-matrix clock, weather and a dock of dot icons" width="100%">
 
 </div>
