@@ -1,0 +1,335 @@
+// The controller page a phone opens after scanning the TV's QR code.
+// It follows the TV screen: a D-pad for the launcher, a swipe pad for Snake,
+// and a landscape game layout (floating stick + big buttons) for Doom.
+export const PHONE_HTML = `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>TV Remote</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+:root{--acc:#ff2a2a}
+html,body{height:100%;background:#000;color:#fff;overflow:hidden;touch-action:none;overscroll-behavior:none;
+  font-family:"Doto",ui-monospace,monospace;font-weight:900;text-transform:uppercase;letter-spacing:3px}
+body{background-image:radial-gradient(circle,#161616 1.4px,transparent 1.6px);background-size:18px 18px;display:flex;flex-direction:column;
+  padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+#bar{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:#777;gap:12px}
+#st .d{display:inline-block;width:10px;height:10px;border-radius:50%;background:#444;margin-right:10px;vertical-align:middle}
+#st.on .d{background:var(--acc);animation:p 1.6s infinite}
+@keyframes p{50%{opacity:.2}}
+#mode{color:#fff}
+#fs{background:none;border:1px solid #333;color:#777;font:inherit;font-size:12px;padding:6px 10px;border-radius:14px}
+.lay{flex:1;display:none;position:relative}
+.lay.on{display:flex}
+
+.b{color:#fff;background:#111;border:2px solid #262626;font:inherit;display:flex;align-items:center;justify-content:center;touch-action:none}
+.b.down{background:#fff;color:#000;border-color:#fff}
+
+/* Launcher D-pad */
+#nav{flex-direction:column;align-items:center;justify-content:center;gap:34px}
+#pad{position:relative;width:min(78vw,330px,62vh);height:min(78vw,330px,62vh)}
+#pad .b{position:absolute;width:33%;height:33%;border-radius:50%;font-size:28px}
+#pad .u{left:33.5%;top:0}#pad .dn{left:33.5%;bottom:0}#pad .l{left:0;top:33.5%}#pad .r{right:0;top:33.5%}
+#pad .ok{left:33.5%;top:33.5%;background:var(--acc);border-color:var(--acc);font-size:20px}
+#nav .back{width:150px;height:62px;border-radius:31px;font-size:16px}
+
+/* Snake swipe pad */
+#snake{flex-direction:column;align-items:stretch;gap:12px;padding-top:12px}
+#swipe{flex:1;border:2px dashed #2a2a2a;border-radius:28px;display:flex;align-items:center;justify-content:center;color:#444;font-size:18px;text-align:center;line-height:1.8}
+#snake .row{display:flex;gap:12px}
+#snake .row .b{flex:1;height:64px;border-radius:22px;font-size:16px}
+#snake .ok{background:var(--acc);border-color:var(--acc)}
+
+/* Doom: left half = floating stick, right half = buttons */
+#doom{gap:12px;padding-top:10px}
+#move{flex:1;position:relative;border-radius:28px;border:2px dashed #222;overflow:hidden}
+#move .lbl{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#3a3a3a;font-size:13px}
+#base{position:absolute;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;border:2px solid #444;display:none;pointer-events:none}
+#knob{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:#fff;pointer-events:none}
+#acts{flex:1.1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:10px}
+#acts .sm{height:46px;border-radius:16px;font-size:12px}
+#acts .mid{border-radius:24px;font-size:16px}
+#acts .fire{grid-column:span 2;border-radius:28px;background:#2a0505;border-color:var(--acc);color:var(--acc);font-size:30px}
+#acts .fire.down{background:var(--acc);color:#fff}
+/* Browser pad */
+#browser{flex-direction:column;gap:10px;padding-top:10px}
+#browser input{flex:1;min-width:0;background:#0d0d0d;border:2px solid #262626;border-radius:16px;color:#fff;font:16px ui-monospace,monospace;
+  padding:0 14px;height:50px;user-select:text;-webkit-user-select:text;touch-action:auto;text-transform:none;letter-spacing:0}
+#browser .row{display:flex;gap:10px}
+#browser .row .b{flex:1;height:50px;border-radius:16px;font-size:13px}
+#browser .go{flex:0 0 76px !important;background:var(--acc);border-color:var(--acc)}
+#tp{flex:1;min-height:180px;border:2px dashed #2a2a2a;border-radius:24px;display:flex;align-items:center;justify-content:center;text-align:center;
+  color:#444;font-size:14px;line-height:1.9;touch-action:none}
+#tp.on{border-color:#555}
+#rot{display:none;position:absolute;inset:0;background:#000;z-index:5;align-items:center;justify-content:center;text-align:center;font-size:18px;line-height:2;color:#888}
+@media (orientation:portrait){ #doom.on #rot{display:flex} }
+</style></head><body>
+<div id="bar"><span id="st"><span class="d"></span><span id="stT">Connecting</span></span><span id="mode">Home</span><button id="fs">Full screen</button></div>
+
+<div class="lay on" id="nav">
+  <div id="pad">
+    <button class="b u" data-k="38">▲</button>
+    <button class="b l" data-k="37">◀</button>
+    <button class="b ok" data-k="13">OK</button>
+    <button class="b r" data-k="39">▶</button>
+    <button class="b dn" data-k="40">▼</button>
+  </div>
+  <button class="b back" data-k="10009">Back</button>
+</div>
+
+<div class="lay" id="snake">
+  <div id="swipe">Swipe to steer<br>◀ ▲ ▼ ▶</div>
+  <div class="row"><button class="b ok" data-k="13">Start / pause</button><button class="b" data-k="10009">Exit</button></div>
+</div>
+
+<div class="lay" id="browser">
+  <div class="row"><input id="url" type="url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="Website or search"><button class="b go" data-act="go">Go</button></div>
+  <div id="tp">Touchpad<br>drag = move · tap = click<br>two fingers = scroll</div>
+  <div class="row"><input id="txt" type="text" autocapitalize="off" autocomplete="off" placeholder="Type into the TV…"><button class="b go" data-act="send">Send</button></div>
+  <div class="row">
+    <button class="b" data-act="back">Back</button><button class="b" data-act="bksp">⌫</button>
+    <button class="b" data-act="enter">Enter</button><button class="b" data-act="start">Start</button>
+  </div>
+  <div class="row">
+    <button class="b" data-act="zoomout">A−</button><button class="b" data-act="zoomreset">100%</button><button class="b" data-act="zoomin">A+</button>
+  </div>
+</div>
+
+<div class="lay" id="doom">
+  <div id="move"><div id="base"><div id="knob"></div></div><div class="lbl">Thumb anywhere to move</div></div>
+  <div id="acts">
+    <button class="b sm" data-k="10009">Menu</button>
+    <button class="b sm" data-cmd="home">Exit</button>
+    <button class="b mid" data-k="427">Open</button>
+    <button class="b mid" data-k="428">Weapon</button>
+    <button class="b fire" data-k="13" data-buzz="25">Fire</button>
+  </div>
+  <div id="rot">Turn your phone sideways<br>⟲</div>
+</div>
+
+<script>
+var room = location.pathname.split('/')[2];
+var ws = null, retry = 500;
+var NAMES = { home: 'Home', panel: 'Customize', mgr: 'Apps', game: 'Snake', doom: 'Doom', browser: 'Browser' };
+
+function status(on, text){
+  document.getElementById('st').className = on ? 'on' : '';
+  document.getElementById('stT').textContent = text;
+}
+function connect(){
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/' + room + '?role=phone');
+  ws.onopen = function(){ retry = 500; status(true, 'Connected'); };
+  ws.onmessage = function(ev){
+    var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.t === 'screen') {
+      setMode(m.s); if (m.tv === false) status(false, 'TV offline');
+      // Every new browser page announces itself: (re)build the direct link to it.
+      if (m.s === 'browser') rtcStart(); else rtcStop();
+    }
+    if (m.t === 'rtc') rtcSignal(m);
+    if (m.t === 'pong') gotPong(m, 'Internet');
+    if (m.t === 'tv') status(m.on, m.on ? 'Connected' : 'TV offline');
+  };
+  ws.onclose = function(){ status(false, 'Reconnecting'); setTimeout(connect, retry); retry = Math.min(retry * 2, 5000); };
+}
+// Prefer the direct Wi-Fi link when it's up: moves on the "fast" channel
+// (unordered, no retransmits — a lost move is simply replaced by the next),
+// everything else on the reliable one. Otherwise fall back to the relay.
+var FAST = { mv: 1, scroll: 1 };
+function send(o){
+  var ch = FAST[o.t] ? rtc.fast : rtc.ctl;
+  if (ch && ch.readyState === 'open') { ch.send(JSON.stringify(o)); return; }
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(o));
+}
+
+// ---------- direct phone↔TV link (WebRTC), set up through the relay ----------
+var ICE = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
+var rtc = { pc: null, fast: null, ctl: null };
+function relay(o){ if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+function rtcStop(){
+  if (rtc.pc) { try { rtc.pc.close(); } catch (e) {} }
+  rtc = { pc: null, fast: null, ctl: null };
+}
+function rtcStart(){
+  rtcStop();
+  if (!window.RTCPeerConnection) return;
+  var pc = new RTCPeerConnection({ iceServers: ICE });
+  rtc.pc = pc;
+  rtc.fast = pc.createDataChannel('fast', { ordered: false, maxRetransmits: 0 });
+  rtc.ctl = pc.createDataChannel('ctl');
+  [rtc.fast, rtc.ctl].forEach(function(ch){
+    ch.onmessage = function(ev){ var m; try { m = JSON.parse(ev.data); } catch (e) { return; } if (m.t === 'pong') gotPong(m, 'Direct'); };
+  });
+  pc.onicecandidate = function(e){ if (e.candidate) relay({ t: 'rtc', ice: e.candidate }); };
+  pc.createOffer().then(function(o){ return pc.setLocalDescription(o); })
+    .then(function(){ relay({ t: 'rtc', sdp: pc.localDescription }); }).catch(function(){});
+}
+function rtcSignal(m){
+  var pc = rtc.pc; if (!pc) return;
+  if (m.sdp) pc.setRemoteDescription(m.sdp).catch(function(){});
+  else if (m.ice) pc.addIceCandidate(m.ice).catch(function(){});
+}
+
+// ---------- live delay meter ----------
+var pingSeq = 0, pingSent = {};
+setInterval(function(){
+  if (!ws || ws.readyState !== 1) return;
+  var id = ++pingSeq; pingSent[id] = performance.now();
+  send({ t: 'ping', id: id });
+}, 2000);
+function gotPong(m, via){
+  var t0 = pingSent[m.id]; if (!t0) return; delete pingSent[m.id];
+  status(true, via + ' · ' + Math.round(performance.now() - t0) + ' ms');
+}
+function buzz(ms){ if (navigator.vibrate) navigator.vibrate(ms); }
+function key(c, down){ send({ t: 'k', c: c, d: down ? 1 : 0 }); }
+
+var cur = 'home';
+function setMode(s){
+  cur = s;
+  document.getElementById('mode').textContent = NAMES[s] || s;
+  var lay = s === 'doom' ? 'doom' : s === 'game' ? 'snake' : s === 'browser' ? 'browser' : 'nav';
+  ['nav', 'snake', 'doom', 'browser'].forEach(function(id){ document.getElementById(id).classList.toggle('on', id === lay); });
+  releaseStick();
+}
+
+// Buttons: press on touch, release on lift (Doom needs real hold/release).
+// Sliding a finger onto a neighbouring button doesn't press it; lifting does release.
+Array.prototype.forEach.call(document.querySelectorAll('.b:not([data-act])'), function(b){
+  var held = false;
+  function down(e){
+    e.preventDefault();
+    if (held) return; held = true; b.classList.add('down');
+    try { b.setPointerCapture(e.pointerId); } catch (err) {}
+    buzz(+(b.dataset.buzz || 12));
+    if (b.dataset.cmd) send({ t: 'cmd', v: b.dataset.cmd });
+    else key(+b.dataset.k, true);
+  }
+  function up(){
+    if (!held) return; held = false; b.classList.remove('down');
+    if (!b.dataset.cmd) key(+b.dataset.k, false);
+  }
+  b.addEventListener('pointerdown', down);
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointercancel', up);
+  b.addEventListener('lostpointercapture', up);
+});
+
+// Doom stick: it appears wherever the thumb lands, so you never miss it.
+var move = document.getElementById('move'), base = document.getElementById('base'), knob = document.getElementById('knob');
+var pid = null, ox = 0, oy = 0, held = {};
+function setHeld(c, on){ if (!!held[c] === on) return; held[c] = on; key(c, on); if (on) buzz(6); }
+function releaseStick(){
+  [37, 38, 39, 40].forEach(function(c){ setHeld(c, false); });
+  base.style.display = 'none'; knob.style.transform = ''; pid = null;
+}
+move.addEventListener('pointerdown', function(e){
+  e.preventDefault(); if (pid !== null) return;
+  pid = e.pointerId; move.setPointerCapture(pid);
+  var r = move.getBoundingClientRect();
+  ox = e.clientX; oy = e.clientY;
+  base.style.left = (ox - r.left) + 'px'; base.style.top = (oy - r.top) + 'px'; base.style.display = 'block';
+});
+move.addEventListener('pointermove', function(e){
+  if (e.pointerId !== pid) return;
+  var dx = e.clientX - ox, dy = e.clientY - oy, max = 60, len = Math.sqrt(dx * dx + dy * dy), k = len > max ? max / len : 1;
+  knob.style.transform = 'translate(' + dx * k + 'px,' + dy * k + 'px)';
+  var dead = 16;
+  setHeld(37, dx < -dead); setHeld(39, dx > dead);
+  setHeld(38, dy < -dead); setHeld(40, dy > dead);
+});
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function(t){
+  move.addEventListener(t, function(e){ if (e.pointerId === pid) releaseStick(); });
+});
+
+// Snake: a swipe is a tap of the matching arrow.
+var sw = document.getElementById('swipe'), sx = 0, sy = 0, sid = null;
+sw.addEventListener('pointerdown', function(e){ e.preventDefault(); sid = e.pointerId; sx = e.clientX; sy = e.clientY; });
+sw.addEventListener('pointermove', function(e){
+  if (e.pointerId !== sid) return;
+  var dx = e.clientX - sx, dy = e.clientY - sy;
+  if (Math.abs(dx) < 28 && Math.abs(dy) < 28) return;
+  var c = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 39 : 37) : (dy > 0 ? 40 : 38);
+  key(c, true); key(c, false); buzz(10);
+  sx = e.clientX; sy = e.clientY;
+});
+sw.addEventListener('pointerup', function(){ sid = null; });
+
+// Browser pad: relative touchpad, two-finger scroll, typing and navigation.
+var tp = document.getElementById('tp'), pts = {}, moved = 0, downAt = 0, accX = 0, accY = 0, flushT = 0, lastScrollY = null;
+function flush(){
+  flushT = 0;
+  if (accX || accY) { send({ t: 'mv', dx: Math.round(accX), dy: Math.round(accY) }); accX = accY = 0; }
+}
+tp.addEventListener('pointerdown', function(e){
+  e.preventDefault(); tp.setPointerCapture(e.pointerId);
+  pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+  if (Object.keys(pts).length === 1) { moved = 0; downAt = Date.now(); }
+  tp.classList.add('on'); lastScrollY = null;
+});
+tp.addEventListener('pointermove', function(e){
+  var p = pts[e.pointerId]; if (!p) return;
+  var dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  moved += Math.abs(dx) + Math.abs(dy);
+  if (Object.keys(pts).length >= 2) {
+    var ys = 0, n = 0; for (var id in pts) { ys += pts[id].y; n++; }
+    var avg = ys / n;
+    if (lastScrollY !== null && Math.abs(avg - lastScrollY) > 2) send({ t: 'scroll', dy: Math.round((lastScrollY - avg) * 3) });
+    lastScrollY = avg;
+    return;
+  }
+  // Faster swipes move the cursor further (simple acceleration).
+  var speed = Math.sqrt(dx * dx + dy * dy), gain = 1.6 + Math.min(speed / 6, 3);
+  accX += dx * gain; accY += dy * gain;
+  if (!flushT) flushT = setTimeout(flush, 20);
+});
+function lift(e){
+  if (!pts[e.pointerId]) return;
+  var wasSingle = Object.keys(pts).length === 1;
+  delete pts[e.pointerId];
+  if (!Object.keys(pts).length) tp.classList.remove('on');
+  if (wasSingle && moved < 10 && Date.now() - downAt < 300) { flush(); send({ t: 'tap' }); buzz(10); }
+}
+['pointerup', 'pointercancel'].forEach(function(t){ tp.addEventListener(t, lift); });
+
+function go(){
+  var v = document.getElementById('url').value.trim(); if (!v) return;
+  var url = /^[a-z]+:\/\//i.test(v) ? v : (/^[^\s]+\.[^\s]{2,}$/.test(v) ? 'https://' + v : 'https://www.google.com/search?q=' + encodeURIComponent(v));
+  send({ t: 'go', url: url.slice(0, 400) }); document.getElementById('url').blur(); buzz(12);
+}
+function sendText(){
+  var el = document.getElementById('txt'), v = el.value; if (!v) return;
+  for (var i = 0; i < v.length; i += 300) send({ t: 'text', s: v.slice(i, i + 300) });
+  el.value = ''; buzz(12);
+}
+var ACTS = {
+  go: go, send: sendText,
+  back: function(){ send({ t: 'nav', v: 'back' }); },
+  start: function(){ send({ t: 'nav', v: 'start' }); },
+  bksp: function(){ send({ t: 'key', k: 'Backspace' }); },
+  enter: function(){ sendText(); send({ t: 'key', k: 'Enter' }); },
+  zoomin: function(){ send({ t: 'zoom', v: 1 }); },
+  zoomout: function(){ send({ t: 'zoom', v: -1 }); },
+  zoomreset: function(){ send({ t: 'zoom', v: 0 }); }
+};
+Array.prototype.forEach.call(document.querySelectorAll('[data-act]'), function(b){
+  b.addEventListener('click', function(){ ACTS[b.dataset.act](); });
+});
+document.getElementById('url').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); go(); } });
+document.getElementById('txt').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); ACTS.enter(); } });
+
+// Keep the phone awake while playing, and offer real full screen.
+var lock = null;
+function wake(){ if (navigator.wakeLock && !lock) navigator.wakeLock.request('screen').then(function(l){ lock = l; l.onrelease = function(){ lock = null; }; }).catch(function(){}); }
+document.addEventListener('pointerdown', wake);
+document.getElementById('fs').addEventListener('click', function(){
+  var d = document.documentElement, f = d.requestFullscreen || d.webkitRequestFullscreen;
+  if (f) f.call(d);
+  try { screen.orientation.lock('landscape').catch(function(){}); } catch (e) {}
+});
+document.addEventListener('visibilitychange', function(){ if (document.hidden) releaseStick(); else wake(); });
+connect();
+</script>
+</body></html>`;

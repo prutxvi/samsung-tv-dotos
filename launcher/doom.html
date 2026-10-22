@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<!--
+  DOOM on the TV, powered by doom.wasm (github.com/jacobenget/doom.wasm, GPL-2.0)
+  running the freely distributable shareware episode.
+
+  Remote: arrows move/turn · OK fire (and menu select) · CH▲ open doors ·
+  CH▼ next weapon · BACK Doom menu · BACK twice quickly returns to Home.
+-->
+<html><head><meta charset="utf-8"><title>Doom</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#000}
+#screen{position:absolute;left:96px;top:0;width:1728px;height:1080px;image-rendering:pixelated}
+/* LED mask: black everywhere except a round hole per pixel cell. */
+#leds{position:absolute;left:96px;top:0;width:1728px;height:1080px;pointer-events:none;
+  background-image:radial-gradient(circle,transparent 0,transparent 3.2px,#000 4.2px);background-size:9px 9px}
+#msg{position:absolute;left:0;right:0;bottom:40px;text-align:center;color:#fff;font:900 30px "Doto",monospace;letter-spacing:5px;
+  text-transform:uppercase;text-shadow:0 0 12px #000,0 0 12px #000;transition:opacity 1s}
+</style>
+</head><body>
+<canvas id="screen"></canvas>
+<div id="leds"></div>
+<div id="msg">Loading Doom…</div>
+<script src="remote.js"></script>
+<script>
+var cfg = {};
+try { cfg = JSON.parse(localStorage.getItem('pvhome') || '{}'); } catch (e) {}
+var dots = cfg.doomDots !== false;
+
+// Doom frames are uploaded as a WebGL texture and the shader swaps B/R. The TV's
+// GPU-backed 2D canvas silently drops putImageData at this size, WebGL doesn't.
+var screen = document.getElementById('screen');
+if (!dots) document.getElementById('leds').style.display = 'none';
+
+var mem = null, gl = null, texReady = false, FW = 0, FH = 0;
+function onGameInit(w, h){
+  FW = w; FH = h;
+  screen.width = w; screen.height = h;
+  gl = screen.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
+  function sh(type, src){ var o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); return o; }
+  var prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER,
+    'attribute vec2 p; varying vec2 uv; void main(){ uv = vec2((p.x + 1.0) * 0.5, (1.0 - p.y) * 0.5); gl_Position = vec4(p, 0.0, 1.0); }'));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER,
+    'precision mediump float; uniform sampler2D t; varying vec2 uv; void main(){ gl_FragColor = vec4(texture2D(t, uv).bgr, 1.0); }'));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  var loc = gl.getAttribLocation(prog, 'p');
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.viewport(0, 0, w, h);
+}
+function drawFrame(ptr){
+  try {
+    var src = new Uint8Array(mem.buffer, ptr, FW * FH * 4);
+    if (!texReady) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, FW, FH, 0, gl.RGBA, gl.UNSIGNED_BYTE, src); texReady = true; }
+    else gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, FW, FH, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  } catch (e) {}
+}
+// Doom busy-waits on the clock until the next 1/35 s tic is due, which burned
+// most of each frame on the TV's slow CPU. Instead each tickGame() call sees a
+// clock that is exactly one tic ahead (or real time, if we fell behind), so it
+// runs one tic and returns. The clock still creeps forward inside a call so
+// Doom's own short wait loops always finish.
+var TIC = 1000 / 35, clockBase = 0, clockReads = 0;
+function gameClock(){ clockReads++; return BigInt(Math.trunc(clockBase + clockReads * 0.05)); }
+function tickGame(ex){
+  clockBase = Math.max(performance.now(), clockBase + TIC);
+  clockReads = 0;
+  ex.tickGame();
+}
+function text(ptr, len){ return new TextDecoder().decode(new Uint8Array(mem.buffer, ptr, len)); }
+
+var imports = {
+  loading: { onGameInit: onGameInit, wadSizes: function(){}, readWads: function(){} },
+  ui: { drawFrame: drawFrame },
+  runtimeControl: { timeInMilliseconds: gameClock },
+  console: {
+    onInfoMessage: function(p, l){ console.log('[doom]', text(p, l)); },
+    onErrorMessage: function(p, l){ console.error('[doom]', text(p, l)); }
+  },
+  gameSaving: { sizeOfSaveGame: function(){ return 0; }, readSaveGame: function(){ return 0; }, writeSaveGame: function(){ return 0; } }
+};
+
+function home(){ location.replace('index.html'); }
+function say(t, ms){
+  var m = document.getElementById('msg');
+  m.textContent = t; m.style.opacity = 1;
+  clearTimeout(say.t);
+  if (ms) say.t = setTimeout(function(){ m.style.opacity = 0; }, ms);
+}
+
+// Channel and colour keys only reach a Tizen app once registered.
+['ChannelUp', 'ChannelDown', 'MediaPlayPause', 'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue',
+ '0', '1', '2', '3', '4', '5', '6', '7'].forEach(function(k){
+  try { tizen.tvinputdevice.registerKey(k); } catch (e) {}
+});
+
+var xhr = new XMLHttpRequest();
+xhr.open('GET', 'doom.wasm');
+xhr.responseType = 'arraybuffer';
+xhr.onload = function(){
+  WebAssembly.instantiate(xhr.response, imports).then(function(r){
+    var ex = r.instance.exports;
+    mem = ex.memory;
+    var v = function(g){ return typeof g === 'object' ? g.value : g; };
+    var K = {
+      left: v(ex.KEY_LEFTARROW), right: v(ex.KEY_RIGHTARROW), up: v(ex.KEY_UPARROW), down: v(ex.KEY_DOWNARROW),
+      fire: v(ex.KEY_FIRE), use: v(ex.KEY_USE), esc: v(ex.KEY_ESCAPE), enter: v(ex.KEY_ENTER)
+    };
+    // Remote key code -> Doom keys pressed together. OK also sends Enter and 'y'
+    // so the same button fires in-game and confirms in menus.
+    var MAP = {
+      37: [K.left], 38: [K.up], 39: [K.right], 40: [K.down],
+      13: [K.fire, K.enter, 121],
+      427: [K.use], 403: [K.use], 32: [K.use],
+      10009: [K.esc], 27: [K.esc]
+    };
+    for (var d = 0; d <= 7; d++) MAP[48 + d] = [48 + d];
+
+    var held = {}, weapon = 1, lastBack = 0;
+    function press(keys, down){ keys.forEach(function(k){ down ? ex.reportKeyDown(k) : ex.reportKeyUp(k); }); }
+
+    document.addEventListener('keydown', function(e){ e.preventDefault(); keyDown(e.keyCode, false); });
+    // The phone sends real press and release events, so its keys skip the
+    // auto-release timer that covers TV remotes without keyup.
+    function keyDown(c, phone){
+      if (c === 10009 || c === 27) {
+        var now = Date.now();
+        if (now - lastBack < 450) return home();
+        lastBack = now;
+      }
+      if (c === 428 || c === 404) {            // CH▼ / green: next weapon
+        weapon = weapon % 7 + 1;
+        press([48 + weapon], true);
+        setTimeout(function(){ press([48 + weapon], false); }, 80);
+        return;
+      }
+      if (c === 10252 || c === 406) {          // play-pause / blue: toggle dot mode
+        try { cfg.doomDots = !dots; localStorage.setItem('pvhome', JSON.stringify(cfg)); } catch (err) {}
+        return location.reload();
+      }
+      var keys = MAP[c];
+      if (!keys) return;
+      // Some remotes never send keyup, only auto-repeated keydowns while held,
+      // so a key also counts as released once its repeats stop.
+      if (!held[c]) press(keys, true);
+      clearTimeout(held[c]);
+      held[c] = phone ? -1 : setTimeout(function(){ release(c); }, 550);
+    }
+    function release(c){
+      if (!held[c]) return;
+      clearTimeout(held[c]);
+      held[c] = 0;
+      press(MAP[c], false);
+    }
+    document.addEventListener('keyup', function(e){ if (MAP[e.keyCode]) release(e.keyCode); });
+
+    Remote.start({
+      screen: function(){ return 'doom'; },
+      key: function(c, down){ if (down) keyDown(c, true); else if (MAP[c]) release(c); },
+      cmd: function(v){ if (v === 'home') home(); }
+    });
+
+    clockBase = performance.now();
+    ex.initGame();
+    setInterval(function(){ tickGame(ex); }, TIC);
+    say('OK fire · CH▲ open · CH▼ weapon · Back menu · Back×2 home', 7000);
+  }).catch(function(err){ say('Doom failed to start: ' + err.message); });
+};
+xhr.onerror = function(){ say('Could not load doom.wasm'); };
+xhr.send();
+</script>
+</body></html>

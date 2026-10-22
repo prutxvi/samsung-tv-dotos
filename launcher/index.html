@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Home</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=Space+Mono:wght@400;700&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--acc:#ff2a2a}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#000;color:#fff}
+body{font-family:"Space Mono",monospace}
+body.grid{background-image:radial-gradient(circle,#141414 1.6px,transparent 1.8px);background-size:24px 24px}
+.doto{font-family:"Doto","Space Mono",monospace;font-weight:900;letter-spacing:4px;text-transform:uppercase}
+.dot{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--acc)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.15}}
+
+#date{position:absolute;left:110px;top:84px;font-size:40px}
+#wx{position:absolute;right:110px;top:84px;font-size:40px;text-align:right}
+#wx .dot{width:16px;height:16px;margin-right:18px;vertical-align:middle;animation:pulse 2s ease-in-out infinite}
+
+#clock{position:absolute;left:50%;transform:translateX(-50%)}
+#secs{position:absolute;left:50%;transform:translateX(-50%)}
+
+#dockwrap{position:absolute;left:0;right:0;bottom:150px;height:300px;overflow:hidden}
+#track{position:absolute;top:0;left:0;display:flex;gap:110px;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.app{display:flex;flex-direction:column;align-items:center;width:330px}
+.lbl{margin-top:34px;font-size:34px;color:#4a4a4a;transition:color .2s;display:flex;align-items:center;white-space:nowrap}
+.lbl .dot{margin-right:16px;opacity:0;transition:opacity .2s}
+.app.f .lbl{color:#fff}
+.app.f .lbl .dot{opacity:1;animation:pulse 1.4s ease-in-out infinite}
+
+#qrbox{position:absolute;right:110px;top:170px;text-align:center}
+#qrl{font-size:18px;color:#666;margin-top:14px;letter-spacing:3px}
+#qrl.on{color:#fff}
+#hint{position:absolute;left:0;right:0;bottom:58px;text-align:center;font-size:22px;color:#3d3d3d;letter-spacing:6px}
+
+.ov{position:absolute;inset:0;background:#000;display:none;padding:110px 0 0 260px}
+.ov.on{display:block}
+.ov h1{font-size:64px;margin-bottom:12px}
+.ov .sub{font-size:22px;color:#555;letter-spacing:4px;margin-bottom:56px}
+.rows{width:1400px;max-height:720px;overflow:hidden}
+.row{display:flex;justify-content:space-between;align-items:center;height:68px;padding:0 34px;font-size:32px;color:#555;border-radius:38px}
+.row .k{display:flex;align-items:center}
+.row .k .dot{margin-right:22px;opacity:0}
+.row.f{color:#fff;background:#111}
+.row.f .k .dot{opacity:1;animation:pulse 1.4s ease-in-out infinite}
+.row .v{letter-spacing:3px}
+.row.f .v:before{content:"◂  ";color:#444}
+.row.f .v:after{content:"  ▸";color:#444}
+.row.f .v.act:before,.row.f .v.act:after{content:""}
+.row .n{display:inline-block;width:60px;color:var(--acc)}
+
+#game{padding:0}
+#gscore{position:absolute;left:96px;right:96px;top:44px;display:flex;justify-content:space-between;font-size:40px;color:#666}
+#gscore b{color:#fff;font-weight:900}
+#gcv{position:absolute;left:96px;top:120px}
+#gmsg{position:absolute;left:0;right:0;top:470px;text-align:center;font-size:64px;text-shadow:0 0 30px #000,0 0 30px #000}
+#gmsg small{display:block;font-size:26px;color:#888;margin-top:22px;letter-spacing:6px}
+</style>
+</head><body class="grid">
+<div id="date" class="doto"></div>
+<div id="wx" class="doto"><span class="dot"></span><span id="wxT">--°</span></div>
+<canvas id="clock"></canvas>
+<canvas id="secs"></canvas>
+<div id="dockwrap"><div id="track"></div></div>
+<div id="hint" class="doto"></div>
+<div id="qrbox"><canvas id="qr"></canvas><div id="qrl" class="doto">Scan to control</div></div>
+
+<div id="panel" class="ov doto"><h1>Customize</h1><div class="sub">▴ ▾ MOVE · ◂ ▸ CHANGE · OK SELECT · BACK CLOSE</div><div class="rows" id="prow"></div></div>
+<div id="game" class="ov doto"><div id="gscore"><span>Score <b id="gs">0</b></span><span>Best <b id="gb">0</b></span></div><canvas id="gcv"></canvas><div id="gmsg"></div></div>
+<div id="mgr" class="ov doto"><h1>Apps</h1><div class="sub">OK ADD / REMOVE · ◂ ▸ REORDER · BACK DONE</div><div class="rows" id="mrow"></div></div>
+
+<script src="qrcode.js"></script>
+<script src="remote.js"></script>
+<script>
+// =====================================================================
+// Settings — everything the Customize menu can change lives here.
+// =====================================================================
+var HDMI = '@hdmi', ADD = '@add', SNAKE = '@snake', DOOM = '@doom', BROWSER = '@browser';
+var DEFAULTS = {
+  apps: ['xvvl3S1bvH.TizenBrewStandalone', BROWSER, '9Ur5IzDKqV.TizenYouTube', HDMI, DOOM, SNAKE],
+  accent: 'Red', h24: false, secs: true, weather: true, city: 'Hyderabad', size: 'Medium', grid: true,
+  best: 0, migrated: 0, doomDots: true, qr: true, link: 'Local', freeMem: true
+};
+var ACCENTS = { Red: '#ff2a2a', White: '#ffffff', Yellow: '#ffcc00', Green: '#3ddc84', Blue: '#3d7bff', Orange: '#ff7a1a' };
+var CITIES = { Hyderabad: [17.385, 78.487], Bengaluru: [12.972, 77.594], Chennai: [13.083, 80.270], Mumbai: [19.076, 72.878],
+  Delhi: [28.614, 77.209], Pune: [18.520, 73.857], Kolkata: [22.573, 88.364], Vijayawada: [16.506, 80.648] };
+var SIZES = { Small: 26, Medium: 34, Large: 42 };
+
+var cfg = load();
+function load(){
+  var c = JSON.parse(JSON.stringify(DEFAULTS));
+  try { var s = JSON.parse(localStorage.getItem('pvhome') || '{}'); for (var k in s) if (k in c) c[k] = s[k]; } catch (e) {}
+  // Docks saved before Snake existed get it added once.
+  if (c.migrated < 1) { if (c.apps.indexOf(SNAKE) === -1) c.apps.push(SNAKE); c.migrated = 1; }
+  if (c.migrated < 3) { if (c.apps.indexOf(BROWSER) === -1) c.apps.splice(1, 0, BROWSER); c.migrated = 3; }
+  if (c.migrated < 2) { if (c.apps.indexOf(DOOM) === -1) c.apps.splice(Math.max(0, c.apps.indexOf(SNAKE)), 0, DOOM); c.migrated = 2; }
+  return c;
+}
+function save(){ try { localStorage.setItem('pvhome', JSON.stringify(cfg)); } catch (e) {} }
+
+// =====================================================================
+// Dot-matrix renderer. Each dot eases toward its target brightness, so
+// changes ripple across the grid instead of snapping.
+// =====================================================================
+function DotGrid(canvas, cols, rows, gap, r){
+  this.c = canvas; this.x = canvas.getContext('2d');
+  this.cols = cols; this.rows = rows; this.gap = gap; this.r = r;
+  canvas.width = cols * gap; canvas.height = rows * gap;
+  this.v = new Float32Array(cols * rows);
+  this.t = new Float32Array(cols * rows);
+  this.d = new Float32Array(cols * rows);
+  this.hot = -1;
+  this.off = 0.07;
+}
+DotGrid.prototype.set = function(bits, level, sweep){
+  var now = performance.now();
+  for (var y = 0; y < this.rows; y++) for (var x = 0; x < this.cols; x++) {
+    var i = y * this.cols + x, nt = bits[y] && bits[y].charAt(x) === '1' ? level : 0;
+    if (this.t[i] !== nt) { this.t[i] = nt; this.d[i] = now + (sweep ? x * sweep + Math.random() * sweep : 0); }
+  }
+};
+DotGrid.prototype.draw = function(now){
+  var x = this.x, g = this.gap, r = this.r, moving = false;
+  x.clearRect(0, 0, this.c.width, this.c.height);
+  for (var i = 0; i < this.v.length; i++) {
+    if (now >= this.d[i]) {
+      var diff = this.t[i] - this.v[i];
+      if (Math.abs(diff) > 0.01) { this.v[i] += diff * 0.22; moving = true; } else this.v[i] = this.t[i];
+    } else moving = true;
+    x.fillStyle = i === this.hot ? ACCENTS[cfg.accent] : 'rgba(255,255,255,' + (this.off + (1 - this.off) * this.v[i]).toFixed(3) + ')';
+    x.beginPath();
+    x.arc((i % this.cols) * g + g / 2, Math.floor(i / this.cols) * g + g / 2, r, 0, 6.2832);
+    x.fill();
+  }
+  return moving;
+};
+
+var grids = [], running = false;
+function frame(now){
+  var moving = false;
+  for (var i = 0; i < grids.length; i++) if (grids[i].draw(now)) moving = true;
+  if (moving) requestAnimationFrame(frame); else running = false;
+}
+function kick(){ if (!running) { running = true; requestAnimationFrame(frame); } }
+
+// =====================================================================
+// 5x7 font + glyphs
+// =====================================================================
+var F = {
+  '0':['01110','10001','10011','10101','11001','10001','01110'], '1':['00100','01100','00100','00100','00100','00100','01110'],
+  '2':['01110','10001','00001','00010','00100','01000','11111'], '3':['11110','00001','00001','01110','00001','00001','11110'],
+  '4':['00010','00110','01010','10010','11111','00010','00010'], '5':['11111','10000','11110','00001','00001','10001','01110'],
+  '6':['00110','01000','10000','11110','10001','10001','01110'], '7':['11111','00001','00010','00100','01000','01000','01000'],
+  '8':['01110','10001','10001','01110','10001','10001','01110'], '9':['01110','10001','10001','01111','00001','00010','01100'],
+  ':':['0','0','1','0','1','0','0'],
+  A:['01110','10001','10001','11111','10001','10001','10001'], B:['11110','10001','10001','11110','10001','10001','11110'],
+  C:['01110','10001','10000','10000','10000','10001','01110'], D:['11100','10010','10001','10001','10001','10010','11100'],
+  E:['11111','10000','10000','11110','10000','10000','11111'], F:['11111','10000','10000','11110','10000','10000','10000'],
+  G:['01110','10001','10000','10111','10001','10001','01111'], H:['10001','10001','10001','11111','10001','10001','10001'],
+  I:['01110','00100','00100','00100','00100','00100','01110'], J:['00111','00010','00010','00010','00010','10010','01100'],
+  K:['10001','10010','10100','11000','10100','10010','10001'], L:['10000','10000','10000','10000','10000','10000','11111'],
+  M:['10001','11011','10101','10101','10001','10001','10001'], N:['10001','10001','11001','10101','10011','10001','10001'],
+  O:['01110','10001','10001','10001','10001','10001','01110'], P:['11110','10001','10001','11110','10000','10000','10000'],
+  Q:['01110','10001','10001','10001','10101','10010','01101'], R:['11110','10001','10001','11110','10100','10010','10001'],
+  S:['01111','10000','10000','01110','00001','00001','11110'], T:['11111','00100','00100','00100','00100','00100','00100'],
+  U:['10001','10001','10001','10001','10001','10001','01110'], V:['10001','10001','10001','10001','10001','01010','00100'],
+  W:['10001','10001','10001','10101','10101','10101','01010'], X:['10001','10001','01010','00100','01010','10001','10001'],
+  Y:['10001','10001','01010','00100','00100','00100','00100'], Z:['11111','00001','00010','00100','01000','10000','11111']
+};
+function textBits(s){
+  var rows = ['', '', '', '', '', '', ''];
+  for (var k = 0; k < s.length; k++) {
+    var g = F[s.charAt(k)] || F.O;
+    for (var y = 0; y < 7; y++) rows[y] += g[y] + (k < s.length - 1 ? '0' : '');
+  }
+  return rows;
+}
+
+var GLYPHS = {
+  'xvvl3S1bvH.TizenBrewStandalone': ['011111111111110','100000000000001','100000100000001','100000110000001',
+    '100000111000001','100000110000001','100000100000001','100000000000001','011111111111110'],
+  '9Ur5IzDKqV.TizenYouTube': ['011111111111110','111111111111111','111111011111111','111111001111111',
+    '111111000111111','111111001111111','111111011111111','111111111111111','011111111111110'],
+  '@hdmi': ['111111111111111','100000000000001','101100000000001','100000000000001',
+    '100000000000001','100000000000001','111111111111111','000001111100000','000111111111000'],
+  '@browser': ['000011111110000','001100010001100','010000010000010','111111111111111',
+    '100000010000001','111111111111111','010000010000010','001100010001100','000011111110000'],
+  '@doom': ['000111111111000','001111111111100','011000111000110','011000111000110',
+    '011111101111110','001111000111100','000111111111000','000101010101000','000111111111000'],
+  '@snake': ['000000000000000','011111111110000','000000000010000','001111111110000',
+    '001000000000000','001111111111100','000000000000000','000000000000010','000000000000000'],
+  '@add': ['000000000000000','000000010000000','000000010000000','000000010000000',
+    '000011111110000','000000010000000','000000010000000','000000010000000','000000000000000']
+};
+// Any other app: framed initials, so every app gets a dot icon automatically.
+function initialsGlyph(name){
+  var words = name.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').trim().split(/\s+/);
+  var ini = words.length > 1 ? words[0].charAt(0) + words[1].charAt(0) : (words[0] || '?').charAt(0);
+  var t = textBits(ini), pad = Math.floor((13 - t[0].length) / 2), out = ['0' + Array(14).join('1') + '0'];
+  for (var y = 0; y < 7; y++) {
+    var line = Array(pad + 1).join('0') + t[y];
+    while (line.length < 13) line += '0';
+    out.push('1' + line + '1');
+  }
+  out.push('0' + Array(14).join('1') + '0');
+  return out;
+}
+function glyphFor(id){ return GLYPHS[id] || initialsGlyph(appName(id)); }
+
+// =====================================================================
+// App catalogue
+// =====================================================================
+var NAMES = { 'xvvl3S1bvH.TizenBrewStandalone': 'TizenTube', '9Ur5IzDKqV.TizenYouTube': 'YouTube', '@hdmi': 'Jio Box', '@snake': 'Snake', '@doom': 'Doom', '@browser': 'Browser', '@add': 'Add' };
+var catalogue = {};
+function appName(id){ return NAMES[id] || (catalogue[id] && catalogue[id].name) || id; }
+function loadCatalogue(done){
+  var self = '';
+  try { self = tizen.application.getCurrentApplication().appInfo.id; } catch (e) {}
+  try {
+    tizen.application.getAppsInfo(function(list){
+      list.forEach(function(a){ if (a.show && a.name && a.id !== self) catalogue[a.id] = { id: a.id, name: a.name }; });
+      done();
+    }, done);
+  } catch (e) { done(); }
+}
+function allChoices(){
+  var ids = [HDMI, BROWSER, DOOM, SNAKE];
+  for (var id in catalogue) if (id !== 'xvvl3S1bvH.StandaloneService') ids.push(id);
+  return ids;
+}
+
+// =====================================================================
+// Widgets: clock, seconds bar, date, weather
+// =====================================================================
+var clock, secs, lastTime = '';
+function buildWidgets(){
+  grids = grids.filter(function(g){ return g !== clock && g !== secs; });
+  var gap = SIZES[cfg.size];
+  clock = new DotGrid(document.getElementById('clock'), 29, 7, gap, gap * 0.35);
+  secs = new DotGrid(document.getElementById('secs'), 60, 1, 18, 4.5);
+  secs.off = 0.12;
+  var top = 300 - gap * 3;
+  document.getElementById('clock').style.top = top + 'px';
+  document.getElementById('secs').style.top = (top + gap * 7 + 36) + 'px';
+  document.getElementById('secs').style.display = cfg.secs ? '' : 'none';
+  document.getElementById('wx').style.display = cfg.weather ? '' : 'none';
+  document.body.className = cfg.grid ? 'grid' : '';
+  document.getElementById('qrbox').style.display = cfg.qr ? '' : 'none';
+  document.documentElement.style.setProperty('--acc', ACCENTS[cfg.accent]);
+  grids.unshift(clock, secs);
+  lastTime = '';
+  tick();
+}
+function tick(){
+  var d = new Date(), h = cfg.h24 ? d.getHours() : (d.getHours() % 12 || 12);
+  var s = (h < 10 ? '0' : '') + h + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+  if (s !== lastTime) { clock.set(textBits(s), 1, lastTime ? 25 : 40); lastTime = s; }
+  if (cfg.secs) {
+    var row = '';
+    for (var k = 0; k < 60; k++) row += k < d.getSeconds() ? '1' : '0';
+    secs.set([row], 0.55, 0);
+    secs.hot = d.getSeconds();
+  }
+  document.getElementById('date').textContent =
+    d.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ' + d.getDate() + ' ' + d.toLocaleDateString('en-GB', { month: 'short' });
+  kick();
+}
+var WMO = { 0:'Clear',1:'Clear',2:'Cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Drizzle',53:'Drizzle',55:'Drizzle',
+  61:'Rain',63:'Rain',65:'Rain',80:'Showers',81:'Showers',82:'Showers',95:'Storm',96:'Storm',99:'Storm' };
+function weather(){
+  if (!cfg.weather) return;
+  var c = CITIES[cfg.city], x = new XMLHttpRequest();
+  x.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' + c[0] + '&longitude=' + c[1] + '&current_weather=true');
+  x.onload = function(){
+    try {
+      var w = JSON.parse(x.responseText).current_weather;
+      document.getElementById('wxT').textContent = Math.round(w.temperature) + '° ' + (WMO[w.weathercode] || '');
+    } catch (e) {}
+  };
+  x.send();
+}
+
+// =====================================================================
+// Dock
+// =====================================================================
+var dock = [], cur = 0;
+function buildDock(){
+  var track = document.getElementById('track');
+  dock.forEach(function(t){ grids.splice(grids.indexOf(t.grid), 1); });
+  track.innerHTML = '';
+  dock = cfg.apps.concat([ADD]).map(function(id){
+    var el = document.createElement('div');
+    el.className = 'app';
+    var cv = document.createElement('canvas');
+    var lbl = document.createElement('div');
+    lbl.className = 'lbl doto';
+    lbl.innerHTML = '<span class="dot"></span><span></span>';
+    lbl.lastChild.textContent = appName(id);
+    el.appendChild(cv); el.appendChild(lbl); track.appendChild(el);
+    var g = new DotGrid(cv, 15, 9, 22, 8);
+    grids.push(g);
+    return { id: id, el: el, grid: g, bits: glyphFor(id) };
+  });
+  focusDock(Math.min(cur, dock.length - 1));
+}
+function focusDock(i){
+  if (i < 0 || i >= dock.length) return;
+  cur = i;
+  dock.forEach(function(t, k){
+    t.el.classList.toggle('f', k === cur);
+    t.grid.set(t.bits, k === cur ? 1 : 0.28, k === cur ? 18 : 0);
+  });
+  var el = dock[cur].el, center = el.offsetLeft + el.offsetWidth / 2;
+  var trackW = document.getElementById('track').scrollWidth;
+  var x = trackW <= 1920 ? (1920 - trackW) / 2 : Math.max(1920 - trackW - 110, Math.min(110, 960 - center));
+  document.getElementById('track').style.transform = 'translateX(' + x + 'px)';
+  kick();
+}
+
+// =====================================================================
+// Actions
+// =====================================================================
+var HINT = '◂ ▸ SELECT · OK OPEN · ▴ CUSTOMIZE';
+function hint(t){
+  var h = document.getElementById('hint');
+  h.textContent = t || HINT;
+  clearTimeout(hint.t);
+  if (t) hint.t = setTimeout(function(){ h.textContent = HINT; }, 4000);
+}
+function launch(id){
+  if (id === ADD) return openMgr();
+  if (id === SNAKE) return snake.open();
+  if (id === BROWSER) return openBrowser();
+  if (id === DOOM) { save(); return location.replace('doom.html'); }
+  if (id === HDMI) return hdmi();
+  hint('Opening ' + appName(id));
+  try { tizen.application.launch(id, freeMemory, function(){ hint(appName(id) + ' not installed'); }); }
+  catch (e) { hint('Could not open'); }
+}
+// The TV has ~1 GB shared by every app. Once another app is up, close the
+// launcher completely so its memory goes to that app (it reopens in ~1 s).
+function freeMemory(){
+  if (!cfg.freeMem) return;
+  setTimeout(function(){ try { tizen.application.getCurrentApplication().exit(); } catch (e) {} }, 1500);
+}
+
+// Open TV Browser+ straight away: TizenBrew launches the module named in the
+// app-control data instead of showing its menu (when it isn't already running).
+function openBrowser(){
+  hint('Opening Browser');
+  try {
+    var data = new tizen.ApplicationControlData('module', [JSON.stringify({ moduleName: 'prutxvi/tv-browser-plus', moduleType: 'gh', args: '' })]);
+    tizen.application.launchAppControl(
+      new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/view', null, null, null, [data]),
+      'xvvl3S1bvH.TizenBrewStandalone', freeMemory, function(){ hint('Install TizenBrew first'); });
+  } catch (e) { hint('Could not open Browser'); }
+}
+
+// Press the TV's HDMI key through its own remote-control channel; if the TV
+// refuses, open Samsung's Source menu instead so it's still one click.
+function hdmi(){
+  hint('Switching to Jio Box');
+  var done = false;
+  function fallback(){
+    if (done) return; done = true;
+    try { tizen.application.launch('org.tizen.SMSourceAPP', null, function(){ hint('Press Source → HDMI'); }); }
+    catch (e) { hint('Press Source → HDMI'); }
+  }
+  try {
+    var ws = new WebSocket('ws://127.0.0.1:8001/api/v2/channels/samsung.remote.control?name=' + btoa('Home'));
+    ws.onmessage = function(ev){
+      var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.event !== 'ms.channel.connect' || done) return;
+      done = true;
+      ws.send(JSON.stringify({ method: 'ms.remote.control', params: { Cmd: 'Click', DataOfCmd: 'KEY_HDMI', Option: 'false', TypeOfRemote: 'SendRemoteKey' } }));
+      setTimeout(function(){ ws.close(); }, 1500);
+    };
+    ws.onerror = fallback;
+    setTimeout(fallback, 4000);
+  } catch (e) { fallback(); }
+}
+
+// =====================================================================
+// Customize panel
+// =====================================================================
+function cycle(list, val, dir){ var i = list.indexOf(val); return list[(i + dir + list.length) % list.length]; }
+var OPTS = [
+  { k: 'Apps',          v: function(){ return cfg.apps.length + ' in dock'; }, act: function(){ openMgr(); } },
+  { k: 'Accent colour', v: function(){ return cfg.accent; }, ch: function(d){ cfg.accent = cycle(Object.keys(ACCENTS), cfg.accent, d); } },
+  { k: 'Clock',         v: function(){ return cfg.h24 ? '24 hour' : '12 hour'; }, ch: function(){ cfg.h24 = !cfg.h24; } },
+  { k: 'Clock size',    v: function(){ return cfg.size; }, ch: function(d){ cfg.size = cycle(Object.keys(SIZES), cfg.size, d); } },
+  { k: 'Seconds bar',   v: function(){ return cfg.secs ? 'On' : 'Off'; }, ch: function(){ cfg.secs = !cfg.secs; } },
+  { k: 'Weather',       v: function(){ return cfg.weather ? 'On' : 'Off'; }, ch: function(){ cfg.weather = !cfg.weather; } },
+  { k: 'City',          v: function(){ return cfg.city; }, ch: function(d){ cfg.city = cycle(Object.keys(CITIES), cfg.city, d); } },
+  { k: 'Doom style',    v: function(){ return cfg.doomDots ? 'Dots' : 'Classic'; }, ch: function(){ cfg.doomDots = !cfg.doomDots; } },
+  { k: 'Phone link',    v: function(){ return cfg.link === 'Local' ? 'Same Wi-Fi (fast)' : 'Internet'; }, ch: function(){ cfg.link = cfg.link === 'Local' ? 'Internet' : 'Local'; if (window.drawQr) drawQr(); } },
+  { k: 'Free memory',   v: function(){ return cfg.freeMem ? 'Close Home when opening apps' : 'Keep Home open'; }, ch: function(){ cfg.freeMem = !cfg.freeMem; } },
+  { k: 'Phone QR',      v: function(){ return cfg.qr ? 'On' : 'Off'; }, ch: function(){ cfg.qr = !cfg.qr; } },
+  { k: 'Dot background',v: function(){ return cfg.grid ? 'On' : 'Off'; }, ch: function(){ cfg.grid = !cfg.grid; } },
+  { k: 'Reset all',     v: function(){ return ''; }, act: function(){ var best = cfg.best; cfg = JSON.parse(JSON.stringify(DEFAULTS)); cfg.best = best; cfg.migrated = 3; applyAll(); } }
+];
+var mode = 'home', pcur = 0, mcur = 0, mlist = [];
+
+function rowEl(k, v, focused, act){
+  var r = document.createElement('div');
+  r.className = 'row' + (focused ? ' f' : '');
+  r.innerHTML = '<span class="k"><span class="dot"></span><span></span></span><span class="v' + (act ? ' act' : '') + '"></span>';
+  r.firstChild.lastChild.textContent = k;
+  r.lastChild.textContent = v;
+  return r;
+}
+function renderPanel(){
+  var box = document.getElementById('prow');
+  box.innerHTML = '';
+  OPTS.forEach(function(o, i){ box.appendChild(rowEl(o.k, o.v(), i === pcur, !!o.act)); });
+}
+function openPanel(){ mode = 'panel'; pcur = 0; renderPanel(); document.getElementById('panel').classList.add('on'); }
+function closeOverlays(){
+  mode = 'home';
+  document.getElementById('panel').classList.remove('on');
+  document.getElementById('mgr').classList.remove('on');
+}
+function applyAll(){ save(); buildWidgets(); weather(); buildDock(); if (mode === 'panel') renderPanel(); }
+
+// ---------- app manager ----------
+function renderMgr(){
+  var inDock = cfg.apps.slice(), rest = allChoices().filter(function(id){ return inDock.indexOf(id) === -1; });
+  rest.sort(function(a, b){ return appName(a).localeCompare(appName(b)); });
+  mlist = inDock.concat(rest);
+  var box = document.getElementById('mrow');
+  box.innerHTML = '';
+  var first = Math.max(0, Math.min(mcur - 4, mlist.length - 9));
+  mlist.slice(first, first + 9).forEach(function(id, j){
+    var i = first + j, pos = cfg.apps.indexOf(id);
+    var r = rowEl(appName(id), pos >= 0 ? 'In dock' : 'Add', i === mcur, pos < 0);
+    var n = document.createElement('span');
+    n.className = 'n';
+    n.textContent = pos >= 0 ? (pos + 1) : '';
+    r.firstChild.insertBefore(n, r.firstChild.firstChild);
+    box.appendChild(r);
+  });
+}
+function openMgr(){
+  closeOverlays();
+  mode = 'mgr'; mcur = 0;
+  loadCatalogue(function(){ renderMgr(); });
+  renderMgr();
+  document.getElementById('mgr').classList.add('on');
+}
+function mgrToggle(){
+  var id = mlist[mcur], pos = cfg.apps.indexOf(id);
+  if (pos >= 0) cfg.apps.splice(pos, 1); else cfg.apps.push(id);
+  save(); renderMgr();
+}
+function mgrMove(dir){
+  var id = mlist[mcur], pos = cfg.apps.indexOf(id), to = pos + dir;
+  if (pos < 0 || to < 0 || to >= cfg.apps.length) return;
+  cfg.apps.splice(pos, 1); cfg.apps.splice(to, 0, id);
+  mcur = to; save(); renderMgr();
+}
+
+// =====================================================================
+// Remote keys
+// =====================================================================
+// Returns true when the key was used. Shared by the TV remote and the phone.
+function handleKey(k){
+  if (mode === 'home') {
+    if (k === 37) focusDock(cur - 1);
+    else if (k === 39) focusDock(cur + 1);
+    else if (k === 13) launch(dock[cur].id);
+    else if (k === 38) openPanel();
+    else if (k === 10009) { try { tizen.application.getCurrentApplication().hide(); } catch (err) {} }
+    else return false;
+  } else if (mode === 'panel') {
+    var o = OPTS[pcur];
+    if (k === 38) pcur = Math.max(0, pcur - 1);
+    else if (k === 40) pcur = Math.min(OPTS.length - 1, pcur + 1);
+    else if ((k === 37 || k === 39) && o.ch) { o.ch(k === 37 ? -1 : 1); applyAll(); }
+    else if (k === 13) { if (o.act) o.act(); else if (o.ch) { o.ch(1); applyAll(); } }
+    else if (k === 10009) closeOverlays();
+    else return false;
+    if (mode === 'panel') renderPanel();
+  } else if (mode === 'game') {
+    if (!snake.key(k)) return false;
+  } else if (mode === 'mgr') {
+    if (k === 38) { mcur = Math.max(0, mcur - 1); renderMgr(); }
+    else if (k === 40) { mcur = Math.min(mlist.length - 1, mcur + 1); renderMgr(); }
+    else if (k === 13) mgrToggle();
+    else if (k === 37) mgrMove(-1);
+    else if (k === 39) mgrMove(1);
+    else if (k === 10009) { closeOverlays(); buildDock(); }
+    else return false;
+  }
+  return true;
+}
+document.addEventListener('keydown', function(e){ if (handleKey(e.keyCode)) e.preventDefault(); });
+
+// =====================================================================
+// Snake — a dot-matrix game on a 48x26 grid. Arrows steer, OK starts or
+// pauses, Back returns to the dock. Walls and your own tail end the run.
+// =====================================================================
+var snake = (function(){
+  var W = 48, H = 26, G = 36, R = 13;
+  var cv = document.getElementById('gcv'), x = cv.getContext('2d');
+  cv.width = W * G; cv.height = H * G;
+  var body, dir, queue, food, score, state, timer, speed, blink = 0;
+
+  function reset(){
+    body = [[10, 13], [9, 13], [8, 13], [7, 13]];
+    dir = [1, 0]; queue = []; score = 0; speed = 150;
+    placeFood();
+    state = 'ready';
+    show('Snake', 'OK to start · arrows to steer');
+  }
+  function placeFood(){
+    do { food = [Math.floor(Math.random() * W), Math.floor(Math.random() * H)]; }
+    while (body.some(function(p){ return p[0] === food[0] && p[1] === food[1]; }));
+  }
+  function show(big, small){
+    document.getElementById('gmsg').innerHTML = big ? '<span></span><small></small>' : '';
+    if (big) { var m = document.getElementById('gmsg'); m.firstChild.textContent = big; m.lastChild.textContent = small; }
+    document.getElementById('gs').textContent = score;
+    document.getElementById('gb').textContent = cfg.best;
+  }
+  function run(){ clearInterval(timer); timer = setInterval(step, speed); }
+  function step(){
+    if (queue.length) dir = queue.shift();
+    var head = [body[0][0] + dir[0], body[0][1] + dir[1]];
+    var hit = head[0] < 0 || head[1] < 0 || head[0] >= W || head[1] >= H ||
+      body.some(function(p, i){ return i < body.length - 1 && p[0] === head[0] && p[1] === head[1]; });
+    if (hit) return over();
+    body.unshift(head);
+    if (head[0] === food[0] && head[1] === food[1]) {
+      score++;
+      if (score > cfg.best) { cfg.best = score; save(); }
+      placeFood();
+      speed = Math.max(55, speed - 4);
+      run();
+      show();
+    } else body.pop();
+    blink++;
+    draw();
+  }
+  function over(){
+    clearInterval(timer);
+    state = 'over';
+    draw(true);
+    show('Game over', 'Score ' + score + ' · OK to play again · Back to exit');
+  }
+  function draw(dead){
+    x.clearRect(0, 0, cv.width, cv.height);
+    var acc = ACCENTS[cfg.accent], on = {};
+    body.forEach(function(p, i){ on[p[0] + ',' + p[1]] = i === 0 ? 2 : 1; });
+    for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) {
+      var s = on[xx + ',' + yy], isFood = xx === food[0] && yy === food[1];
+      if (s === 2) x.fillStyle = dead ? '#555' : acc;
+      else if (s === 1) x.fillStyle = dead ? '#444' : '#fff';
+      else if (isFood) x.fillStyle = blink % 4 < 2 ? acc : 'rgba(255,255,255,.35)';
+      else x.fillStyle = 'rgba(255,255,255,.06)';
+      x.beginPath();
+      x.arc(xx * G + G / 2, yy * G + G / 2, s || isFood ? R : R * 0.55, 0, 6.2832);
+      x.fill();
+    }
+  }
+  function turn(dx, dy){
+    var last = queue.length ? queue[queue.length - 1] : dir;
+    if (last[0] === -dx && last[1] === -dy) return;
+    if (last[0] === dx && last[1] === dy) return;
+    if (queue.length < 3) queue.push([dx, dy]);
+    if (state === 'ready') { state = 'play'; show(); run(); }
+  }
+  return {
+    open: function(){
+      mode = 'game';
+      document.getElementById('game').classList.add('on');
+      reset(); draw();
+    },
+    key: function(k){
+      if (k === 10009) {
+        clearInterval(timer);
+        document.getElementById('game').classList.remove('on');
+        mode = 'home';
+        return true;
+      }
+      if (k === 37) turn(-1, 0);
+      else if (k === 38) turn(0, -1);
+      else if (k === 39) turn(1, 0);
+      else if (k === 40) turn(0, 1);
+      else if (k === 13) {
+        if (state === 'ready') { state = 'play'; show(); run(); }
+        else if (state === 'play') { state = 'pause'; clearInterval(timer); show('Paused', 'OK to continue'); }
+        else if (state === 'pause') { state = 'play'; show(); run(); }
+        else if (state === 'over') { reset(); draw(); }
+      } else return false;
+      return true;
+    }
+  };
+})();
+
+// =====================================================================
+hint();
+buildWidgets();
+setInterval(tick, 1000);
+weather(); setInterval(weather, 30 * 60 * 1000);
+loadCatalogue(buildDock);
+buildDock();
+
+// Phone control: draw the room QR in dots and relay phone keys into handleKey.
+(function(){
+  var linkMode = '';
+  window.drawQr = function(){
+    Remote.phoneUrl(cfg.link === 'Local', function(url, local){
+      linkMode = local ? 'Same Wi-Fi' : 'Internet';
+      var qr = qrcode(0, 'M');
+      qr.addData(url); qr.make();
+      var n = qr.getModuleCount(), cell = 6, cv = document.getElementById('qr'), x = cv.getContext('2d');
+      cv.width = cv.height = (n + 2) * cell;
+      x.fillStyle = '#fff';
+      for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (qr.isDark(r, c)) {
+        x.beginPath(); x.arc((c + 1.5) * cell, (r + 1.5) * cell, cell * 0.46, 0, 6.2832); x.fill();
+      }
+      var l = document.getElementById('qrl');
+      if (l.className.indexOf('on') === -1) l.textContent = 'Scan · ' + linkMode;
+    });
+  };
+  drawQr();
+  Remote.start({
+    screen: function(){ return mode; },
+    key: function(c, down){ if (down) handleKey(c); },
+    cmd: function(v){ if (v === 'home') { if (mode === 'game') snake.key(10009); closeOverlays(); } },
+    phones: function(count){
+      var l = document.getElementById('qrl');
+      l.className = 'doto' + (count ? ' on' : '');
+      l.textContent = count ? '● Phone connected' : 'Scan · ' + linkMode;
+    }
+  });
+})();
+</script>
+</body></html>

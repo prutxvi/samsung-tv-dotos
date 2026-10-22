@@ -1,0 +1,13 @@
+Third-party components
+
+launcher/doom.wasm, doom-build/
+  Built from https://github.com/jacobenget/doom.wasm (commit 31cc1af), which is based on
+  doomgeneric and the id Software Doom source release. Licence: GNU GPL v2.0.
+  Our changes are the files in doom-build/; see doom-build/README.txt for the exact build.
+  Embeds the Doom shareware WAD v1.9 (DOOM1.WAD, md5 f0cefca49926d00903cf57551d901abe),
+  which id Software allows to be freely distributed.
+
+launcher/qrcode.js
+  qrcode-generator by Kazuhiko Arase, MIT licence (header retained in the file).
+
+Fonts (loaded at runtime from Google Fonts): Doto and Space Mono, SIL Open Font Licence.
