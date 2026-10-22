@@ -3,7 +3,9 @@
 //  - cloud: the Cloudflare Worker (phones anywhere, ~80 ms)
 // A phone uses whichever one its QR link pointed at.
 var Remote = (function(){
-  var CLOUD = 'tv-remote.pvhome.workers.dev', LOCAL_PORT = 8090, SERVICE = 'PvHomeLnch.Remote';
+  // Your relay's hostname after `npx wrangler deploy` in relay/ (see docs/SETUP.md). Optional: the
+  // local Wi-Fi link works without it.
+  var CLOUD = 'tv-remote.YOUR-SUBDOMAIN.workers.dev', LOCAL_PORT = 8090, SERVICE = 'PvHomeLnch.Remote';
 
   function room(){
     var id = '';
