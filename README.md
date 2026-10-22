@@ -6,6 +6,11 @@ A custom home screen, Doom at 34 fps, Snake and a phone remote for a **2020 Sams
 
 ![DotOS launcher](docs/media/hero.jpg)
 
+<p align="center">
+  <img src="docs/media/clock-ripple.gif" width="49%" alt="The dot clock rippling as the minute changes">
+  <img src="docs/media/phone-doom.gif" width="49%" alt="Playing Doom on the TV with the phone as the controller">
+</p>
+
 ## What's inside
 
 | Part | What it does |
